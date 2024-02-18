@@ -1,6 +1,7 @@
 import { json, redirect} from "@remix-run/node";
 import { useLoaderData,Form } from "@remix-run/react";
 import type { ActionFunctionArgs } from "@remix-run/node"; 
+import { commitSession, getSession } from "~/session.server";
 
 interface ToDo {
   id: number;
@@ -13,13 +14,24 @@ let todos: ToDo[] = [
   { id: 2, text: 'Build a ToDo List', completed: false },
   { id: 3, text: 'fix errors', completed: false },
 ];
-export const loader = async () => {
-  return json(todos);
+export const loader = async ({
+  request,
+}: ActionFunctionArgs)=> {
+  const session = await getSession(request.headers.get("Cookie"));
+  const todos = session.get("todos") || [
+    { id: 1, text: "Learn Remix", completed: false },
+    { id: 2, text: "Build a ToDo List", completed: false },
+    { id: 3, text: "Fix errors", completed: false },
+  ];
+  console.log("Session todos before commit:", session.get("todos"));
+
+  return json({ todos });
 };
 
 export const action = async ({
   request,
 }: ActionFunctionArgs) => {
+  const session = await getSession(request.headers.get("Cookie"));
   const formData = await request.formData();
   const action = formData.get("_action")
   switch (action) {
@@ -44,11 +56,16 @@ export const action = async ({
           break;
  
   }
-  return redirect("/mainpage");
+session.set("todos", todos);
+const headers = new Headers({
+  "Set-Cookie": await commitSession(session),
+});
+return redirect("/mainpage", { headers });
+
 };
 
 export default function MainPageRoute() {
-  const todos: ToDo[] = useLoaderData<ToDo[]>();   
+  const {todos}: ToDo[] = useLoaderData<ToDo[]>();   
    return (
       <div
       style={{
